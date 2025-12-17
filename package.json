@@ -16,7 +16,8 @@
     "three": "^0.181.1",
     "framer-motion": "^12.23.24",
     "lucide-react": "^0.553.0",
-    "@google/genai": "^0.13.0"
+    "@google/genai": "^0.13.0",
+    "@vercel/analytics": "^1.6.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
