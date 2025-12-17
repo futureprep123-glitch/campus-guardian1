@@ -10,11 +10,18 @@ An empathy-driven campus safety and misconduct reporting platform.
 - **Interactive Dashboard**: Real-time safety metrics and distribution analysis.
 
 ## Vercel Deployment
-To deploy this project:
+
+To ensure the AI features work correctly on Vercel, you must configure your environment variables:
+
 1. Push this repository to GitHub/GitLab.
-2. Connect the repository in the [Vercel Dashboard](https://vercel.com).
-3. Set the Environment Variable `API_KEY` to your Google Gemini API Key.
-4. Vercel will auto-detect the Vite configuration and build the project.
+2. Import the project into the [Vercel Dashboard](https://vercel.com).
+3. **Crucial Step**: Go to **Settings > Environment Variables**.
+4. Add a new variable:
+   - **Key**: `API_KEY`
+   - **Value**: `your_google_gemini_api_key_here`
+5. Click **Add** and then **Redeploy** your project.
+
+Vercel's build process will now inject this key into the application, allowing the `gemini-3-flash-preview` model to generate insights.
 
 ## Technology Stack
 - **React 19**
