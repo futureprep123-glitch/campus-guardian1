@@ -38,9 +38,15 @@ import {
   Info,
   Send,
   Eye,
-  History
+  History,
+  Sparkles,
+  Zap,
+  BrainCircuit,
+  ExternalLink,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { GoogleGenAI } from "@google/genai";
 import { User, UserRole, Incident, IncidentCategory, IncidentStatus, UserStatus } from './types';
 import { GradientLogo, RoleIcon, Card, Badge } from './components/BrandingComponents';
 import { PieChart, BarGraph } from './components/DashboardStats';
@@ -51,6 +57,12 @@ const App: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<string[]>([]);
   const [authError, setAuthError] = useState('');
+
+  const PRODUCTION_URL = "https://campus-guardian12-wxcd.vercel.app/";
+
+  // AI State
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Modals State
   const [editUser, setEditUser] = useState<User | null>(null);
@@ -161,6 +173,34 @@ const App: React.FC = () => {
     setView('ApprovalPending');
   };
 
+  const generateAIAnalysis = async (incident: Incident) => {
+    setIsAnalyzing(true);
+    setAiAnalysis(null);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Analyze this campus incident and provide empathy-driven insights for staff:
+        Type: ${incident.type}
+        Severity: ${incident.severity}
+        Location: ${incident.location}
+        Description: ${incident.description}
+        
+        Provide:
+        1. Empathy-focused resolution suggestion.
+        2. Disciplinary alignment (educational vs punitive).
+        3. Prevention tip for campus staff.
+        Keep it concise and professional.`,
+      });
+      setAiAnalysis(response.text || "Analysis could not be generated.");
+    } catch (error) {
+      console.error("AI Analysis failed:", error);
+      setAiAnalysis("Failed to connect to AI engine. Please ensure security parameters are correctly configured.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const approveUser = (id: string) => {
     setUsers(users.map(u => u.id === id ? { ...u, status: 'Active', isActive: true } : u));
     setNotifications([`User ${id} has been approved.`, ...notifications]);
@@ -226,8 +266,6 @@ const App: React.FC = () => {
   const addIncident = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
-    // Automatic timestamp recording
     const timestamp = new Date().toISOString();
     
     const newIncident: Incident = {
@@ -269,7 +307,7 @@ const App: React.FC = () => {
     return `${formatDate(isoString)} at ${formatTime(isoString)}`;
   };
 
-  // Reusable Confirmation Modal Component
+  // Components
   const ConfirmationModal = () => (
     <AnimatePresence>
       {confirmDialog.isOpen && (
@@ -396,7 +434,6 @@ const App: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Integrated Metadata Fields */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Creation Date</label>
                   <div className="relative">
@@ -446,19 +483,18 @@ const App: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setViewIncident(null)}
+            onClick={() => { setViewIncident(null); setAiAnalysis(null); }}
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
           />
           <motion.div 
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+            className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
           >
-            {/* Prominent Timestamp Section */}
             <div className="p-8 bg-guardian-dark text-white relative">
               <button 
-                onClick={() => setViewIncident(null)}
+                onClick={() => { setViewIncident(null); setAiAnalysis(null); }}
                 className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition-all"
               >
                 <X size={20} />
@@ -481,7 +517,7 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-8 space-y-8 overflow-y-auto max-h-[60vh]">
+            <div className="p-8 space-y-8 overflow-y-auto">
               <div className="grid grid-cols-2 gap-8">
                 <div>
                   <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-2">Category</label>
@@ -515,8 +551,53 @@ const App: React.FC = () => {
               </div>
 
               <div className="pt-6 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <BrainCircuit size={18} className="text-guardian-purple" />
+                    Guardian AI Insights
+                  </h4>
+                  {!aiAnalysis && !isAnalyzing && (
+                    <button 
+                      onClick={() => generateAIAnalysis(viewIncident)}
+                      className="text-xs font-bold text-guardian-purple hover:bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-200 transition-all flex items-center gap-1.5"
+                    >
+                      <Sparkles size={14} /> Analyze Incident
+                    </button>
+                  )}
+                </div>
+
+                {isAnalyzing && (
+                  <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 flex flex-col items-center justify-center gap-3">
+                    <div className="relative">
+                      <Zap size={24} className="text-guardian-purple animate-pulse" />
+                      <div className="absolute inset-0 bg-guardian-purple/20 blur-xl animate-pulse"></div>
+                    </div>
+                    <p className="text-xs font-medium text-slate-500 animate-pulse">Consulting Gemini AI Security Engine...</p>
+                  </div>
+                )}
+
+                {aiAnalysis && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-5 bg-gradient-to-br from-purple-50 to-white ai-glow rounded-2xl border border-purple-100 relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 p-2 opacity-10">
+                      <Shield size={64} className="text-guardian-purple" />
+                    </div>
+                    <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap relative z-10">
+                      {aiAnalysis}
+                    </p>
+                    <div className="mt-4 pt-3 border-t border-purple-100 flex items-center gap-2 text-[10px] font-bold text-guardian-purple uppercase tracking-widest">
+                      <CheckCircle size={12} /> AI-Generated Resolution Proposal
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              <div className="pt-6 border-t border-slate-100">
                  <button 
-                  onClick={() => setViewIncident(null)}
+                  onClick={() => { setViewIncident(null); setAiAnalysis(null); }}
                   className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg"
                  >
                    Return to Log
@@ -529,10 +610,9 @@ const App: React.FC = () => {
     </AnimatePresence>
   );
 
-  // Views
   const LandingPage = () => (
-    <div className="min-h-screen bg-gradient-mesh flex flex-col items-center justify-center p-6 text-center">
-      <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+    <div className="min-h-screen bg-gradient-mesh flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
+      <div className="max-w-4xl mx-auto space-y-8 animate-fade-in z-10">
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-white text-sm font-medium">
           <Shield size={16} className="text-guardian-green" /> 
           Advanced Campus Security Platform
@@ -558,6 +638,21 @@ const App: React.FC = () => {
             Request Access
           </button>
         </div>
+      </div>
+      
+      {/* Deployment Attribution */}
+      <div className="absolute bottom-8 left-0 right-0 z-10 flex flex-col items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+        <a 
+          href={PRODUCTION_URL} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="flex items-center gap-2 text-white/70 text-xs font-bold uppercase tracking-[0.2em] hover:text-white transition-colors"
+        >
+          <Globe size={14} className="text-guardian-green" />
+          Live Deployment Verified
+        </a>
+        <div className="h-[1px] w-24 bg-white/10"></div>
+        <p className="text-[10px] text-white/40 tracking-widest">{PRODUCTION_URL}</p>
       </div>
     </div>
   );
@@ -689,449 +784,6 @@ const App: React.FC = () => {
     </div>
   );
 
-  const ApprovalPendingPage = () => (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-      <Card className="w-full max-w-md p-10 text-center space-y-8">
-        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto animate-pulse">
-          <Clock size={40} className="text-guardian-blue" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-3xl font-heading font-bold text-slate-900 tracking-tight">Approval Pending</h2>
-          <p className="text-slate-500">Your registration has been submitted successfully.</p>
-        </div>
-        <p className="text-slate-600 text-sm leading-relaxed">
-          The campus administrator needs to verify your identity before granting access to the Guardian portal. 
-          Please check back in 24-48 hours.
-        </p>
-        <button 
-          onClick={() => setView('Landing')}
-          className="w-full py-4 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-all"
-        >
-          Return to Home
-        </button>
-      </Card>
-    </div>
-  );
-
-  const ForgotPasswordPage = () => (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-      <Card className="w-full max-w-md p-10">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-heading font-bold text-slate-900 tracking-tight">Reset Password</h2>
-          <p className="text-slate-500 text-sm mt-2">Enter your registered email address</p>
-        </div>
-        <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); alert('Reset link sent to your email.'); setView('Login'); }}>
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Email Address</label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input type="email" className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-guardian-blue outline-none" required />
-            </div>
-          </div>
-          <button className="w-full py-4 bg-guardian-blue text-white font-bold rounded-xl shadow-lg shadow-blue-500/10">
-            Send Reset Link
-          </button>
-          <button type="button" onClick={() => setView('Login')} className="w-full text-sm text-slate-500 hover:text-guardian-blue">
-            Back to Login
-          </button>
-        </form>
-      </Card>
-    </div>
-  );
-
-  const ReportIncidentPage = () => (
-    <div className="space-y-8 animate-fade-in pb-12">
-      <div className="max-w-3xl mx-auto">
-        <div className="mb-8">
-           <button 
-            onClick={() => setView('Dashboard')}
-            className="flex items-center gap-2 text-slate-400 hover:text-guardian-blue font-bold text-sm mb-4 transition-colors"
-           >
-             <ArrowLeft size={16} /> Back to Dashboard
-           </button>
-           <h2 className="text-4xl font-heading font-bold text-slate-900 tracking-tight">Report Conduct Incident</h2>
-           <p className="text-slate-500">Provide accurate details to ensure timely administrative action.</p>
-        </div>
-
-        <Card className="p-8 shadow-xl border-slate-200">
-          <form onSubmit={addIncident} className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Incident Category</label>
-                <div className="relative">
-                  <Activity className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <select 
-                    name="type"
-                    className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-guardian-blue outline-none font-medium appearance-none"
-                    required
-                  >
-                    <option value="Bunking">Bunking / Unauthorized Leave</option>
-                    <option value="Property Damage">Property Damage</option>
-                    <option value="Disrespect">Disrespect to Staff</option>
-                    <option value="Physical Altercation">Physical Altercation</option>
-                    <option value="Other">Other Conduct Violation</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Severity Level</label>
-                <select 
-                  name="severity"
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-guardian-blue outline-none font-medium appearance-none"
-                  required
-                >
-                  <option value="Low">Low (Informational)</option>
-                  <option value="Medium">Medium (Correction Required)</option>
-                  <option value="High">High (Disciplinary Action)</option>
-                  <option value="Critical">Critical (Immediate Intervention)</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Specific Location</label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input 
-                    name="location"
-                    type="text" 
-                    placeholder="e.g., Block B, Room 204"
-                    className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-guardian-blue outline-none font-medium"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Student Identifier (ID)</label>
-                <div className="relative">
-                  <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input 
-                    name="studentId"
-                    type="text" 
-                    placeholder="e.g., S40192"
-                    className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-guardian-blue outline-none font-medium"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Incident Description & Narrative</label>
-              <textarea 
-                name="description"
-                rows={4}
-                placeholder="Provide a factual description of the events observed..."
-                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-guardian-blue outline-none font-medium resize-none"
-                required
-              />
-            </div>
-
-            <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100">
-              <div className="flex items-center gap-2 text-slate-400 text-xs italic">
-                <Shield size={14} />
-                Submitting as {currentUser?.name}
-              </div>
-              <button className="w-full sm:w-auto px-10 py-4 bg-guardian-dark text-white font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95">
-                <Send size={18} /> Submit Incident Report
-              </button>
-            </div>
-          </form>
-        </Card>
-      </div>
-    </div>
-  );
-
-  const ApprovalPortal = () => {
-    const pending = users.filter(u => u.status === 'Pending');
-
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-heading font-bold">Access Gatekeeper</h2>
-            <p className="text-slate-500">Verify and approve new campus members</p>
-          </div>
-          <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-100 text-guardian-blue font-bold text-sm">
-            {pending.length} Requests Awaiting
-          </div>
-        </div>
-
-        {pending.length === 0 ? (
-          <Card className="p-12 text-center text-slate-400">
-            <UserCheck size={48} className="mx-auto mb-4 opacity-20" />
-            <p>No new access requests at the moment.</p>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 gap-4">
-            {pending.map(user => (
-              <Card key={user.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 hover:border-blue-200 transition-all">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-400">
-                    {user.name.charAt(0)}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-slate-900">{user.name}</h4>
-                    <p className="text-sm text-slate-500">{user.email} • Requested {user.role}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => rejectUser(user.id)}
-                    className="p-3 text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
-                  >
-                    <UserX size={20} />
-                  </button>
-                  <button 
-                    onClick={() => approveUser(user.id)}
-                    className="flex items-center gap-2 px-6 py-3 bg-guardian-blue text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-md"
-                  >
-                    <UserCheck size={20} /> Approve Access
-                  </button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const AdminDashboard = () => {
-    const [statusFilter, setStatusFilter] = useState<string>('All');
-    const [severityFilter, setSeverityFilter] = useState<string>('All');
-    const [startDate, setStartDate] = useState<string>('');
-    const [endDate, setEndDate] = useState<string>('');
-
-    const filteredIncidents = incidents.filter(incident => {
-      const matchStatus = statusFilter === 'All' || incident.status === statusFilter;
-      const matchSeverity = severityFilter === 'All' || incident.severity === severityFilter;
-      
-      const incidentDate = new Date(incident.timestamp).getTime();
-      const start = startDate ? new Date(startDate).getTime() : 0;
-      const end = endDate ? new Date(endDate).getTime() : Infinity;
-      const matchDate = incidentDate >= start && incidentDate <= end;
-
-      return matchStatus && matchSeverity && matchDate;
-    });
-
-    const resetFilters = () => {
-      setStatusFilter('All');
-      setSeverityFilter('All');
-      setStartDate('');
-      setEndDate('');
-    };
-
-    return (
-      <div className="space-y-8 animate-fade-in pb-10">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-heading font-bold">Guardian Overview</h2>
-            <p className="text-slate-500">Real-time safety metrics and trend analysis</p>
-          </div>
-          <div className="flex items-center gap-3">
-             <button 
-              onClick={() => setView('SubmitReport')}
-              className="flex items-center gap-2 px-6 py-2 bg-guardian-dark text-white font-bold rounded-xl hover:bg-slate-800 transition-all shadow-md"
-             >
-               <FilePlus size={18} /> Report Incident
-             </button>
-            <button className="p-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 relative">
-              <Bell size={20} />
-              <div className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></div>
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="flex items-center gap-4 border-l-4 border-l-guardian-blue">
-            <div className="p-3 bg-blue-50 rounded-xl"><AlertTriangle className="text-guardian-blue" /></div>
-            <div>
-              <div className="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Complaints</div>
-              <div className="text-3xl font-bold">{incidents.length}</div>
-            </div>
-          </Card>
-          <Card className="flex items-center gap-4 border-l-4 border-l-red-500">
-            <div className="p-3 bg-red-50 rounded-xl"><AlertTriangle className="text-red-500" /></div>
-            <div>
-              <div className="text-slate-500 text-xs font-bold uppercase tracking-wider">Awaiting Approval</div>
-              <div className="text-3xl font-bold">{users.filter(u => u.status === 'Pending').length}</div>
-            </div>
-          </Card>
-          <Card className="flex items-center gap-4 border-l-4 border-l-guardian-green">
-            <div className="p-3 bg-emerald-50 rounded-xl"><CheckCircle className="text-guardian-green" /></div>
-            <div>
-              <div className="text-slate-500 text-xs font-bold uppercase tracking-wider">Active Staff</div>
-              <div className="text-3xl font-bold">{users.filter(u => u.status === 'Active' && u.role !== 'Student').length}</div>
-            </div>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card>
-            <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-              <CheckCircle size={20} className="text-guardian-blue" /> Status Distribution
-            </h3>
-            <PieChart 
-              data={[
-                { label: 'Pending', value: incidents.filter(i => i.status === 'Pending').length, color: '#94A3B8' },
-                { label: 'In Progress', value: incidents.filter(i => i.status === 'In Progress').length, color: '#3B82F6' },
-                { label: 'Resolved', value: incidents.filter(i => i.status === 'Resolved').length, color: '#10B981' },
-                { label: 'Dismissed', value: incidents.filter(i => i.status === 'Dismissed').length, color: '#64748B' },
-              ]} 
-            />
-          </Card>
-          <Card>
-            <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-              <LayoutDashboard size={20} className="text-guardian-purple" /> Category Breakdown
-            </h3>
-            <BarGraph 
-              data={[
-                { label: 'Bunking', value: incidents.filter(i => i.type === 'Bunking').length, color: '#7C3AED' },
-                { label: 'Property Damage', value: incidents.filter(i => i.type === 'Property Damage').length, color: '#2563EB' },
-                { label: 'Disrespect', value: incidents.filter(i => i.type === 'Disrespect').length, color: '#10B981' },
-                { label: 'Physical', value: incidents.filter(i => i.type === 'Physical Altercation').length, color: '#EF4444' },
-                { label: 'Other', value: incidents.filter(i => i.type === 'Other').length, color: '#94A3B8' },
-              ]} 
-            />
-          </Card>
-        </div>
-
-        {/* Incidents Log with Integrated Filters */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-             <h3 className="text-xl font-bold flex items-center gap-2">
-                <Filter size={20} className="text-guardian-blue" /> 
-                Incidents Log
-             </h3>
-             <button 
-              onClick={resetFilters}
-              className="text-xs font-bold text-slate-400 hover:text-guardian-blue flex items-center gap-1 transition-colors"
-             >
-                <RefreshCcw size={14} /> Reset Filters
-             </button>
-          </div>
-
-          <Card className="p-4 bg-white/50 border-dashed">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Filter by Status</label>
-                <select 
-                  className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-guardian-blue font-medium appearance-none"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                  <option value="All">All Statuses</option>
-                  <option value="Pending">Pending</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Resolved">Resolved</option>
-                  <option value="Dismissed">Dismissed</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Filter by Severity</label>
-                <select 
-                  className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-guardian-blue font-medium appearance-none"
-                  value={severityFilter}
-                  onChange={(e) => setSeverityFilter(e.target.value)}
-                >
-                  <option value="All">All Severities</option>
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Critical">Critical</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Start Date</label>
-                <div className="relative">
-                  <Calendar size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input 
-                    type="date"
-                    className="w-full pl-8 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-guardian-blue font-medium"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">End Date</label>
-                <div className="relative">
-                  <Calendar size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input 
-                    type="date"
-                    className="w-full pl-8 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-guardian-blue font-medium"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="overflow-hidden p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Incident</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Student ID</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Severity</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Status</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Timestamp</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredIncidents.length > 0 ? (
-                    filteredIncidents.map(incident => (
-                      <tr key={incident.id} className="hover:bg-slate-50/50 group transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-900">{incident.type}</div>
-                          <div className="text-[10px] text-slate-400 flex items-center gap-1 uppercase font-bold tracking-tight">
-                            <MapPin size={10} /> {incident.location}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-slate-600 font-bold">{incident.studentId}</td>
-                        <td className="px-6 py-4"><Badge type={incident.severity}>{incident.severity}</Badge></td>
-                        <td className="px-6 py-4"><Badge type={incident.status}>{incident.status}</Badge></td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-slate-800">{formatTime(incident.timestamp)}</span>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{formatDate(incident.timestamp)}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button 
-                            onClick={() => setViewIncident(incident)}
-                            className="p-2 text-slate-400 hover:text-guardian-blue hover:bg-blue-50 rounded-xl transition-all"
-                            title="View Full Details"
-                          >
-                            <Eye size={18} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">
-                        No incidents found matching the selected filters.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
-      </div>
-    );
-  };
-
   const UserManagement = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const filteredUsers = users.filter(u => 
@@ -1244,6 +896,148 @@ const App: React.FC = () => {
     );
   };
 
+  const SidebarItem = ({ active, icon, label, onClick }: { active: boolean, icon: React.ReactNode, label: string, onClick: () => void }) => (
+    <button 
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active ? 'bg-guardian-blue text-white font-bold shadow-lg shadow-blue-500/20' : 'hover:bg-white/5 hover:text-white'}`}
+    >
+      {icon}
+      <span className="text-sm">{label}</span>
+    </button>
+  );
+
+  // Fix: Added missing component ForgotPasswordPage
+  const ForgotPasswordPage = () => (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+      <Card className="w-full max-w-md p-10">
+        <div className="text-center mb-10">
+          <button onClick={() => setView('Login')} className="mb-6 text-slate-400 hover:text-guardian-blue flex items-center gap-2 text-sm mx-auto">
+            <ArrowLeft size={16} /> Back to Login
+          </button>
+          <h2 className="text-3xl font-heading font-bold text-slate-900 tracking-tight">Reset Password</h2>
+          <p className="text-slate-500 text-sm mt-2">Enter your email to receive a reset link</p>
+        </div>
+        <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); alert('Reset link sent!'); setView('Login'); }}>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Email Address</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input type="email" placeholder="your.id@hitam.edu" className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-guardian-blue outline-none" required />
+            </div>
+          </div>
+          <button className="w-full py-4 bg-guardian-blue text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg active:scale-95">
+            Send Reset Instructions
+          </button>
+        </form>
+      </Card>
+    </div>
+  );
+
+  // Fix: Added missing component ApprovalPendingPage
+  const ApprovalPendingPage = () => (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
+      <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mb-8">
+        <Clock size={48} className="text-guardian-blue animate-pulse" />
+      </div>
+      <h2 className="text-4xl font-heading font-bold text-slate-900 mb-4">Request Under Review</h2>
+      <p className="text-slate-500 max-w-md mx-auto mb-8 leading-relaxed">
+        Your access request has been submitted to the Campus Administration. 
+        You will be granted access once a system administrator verifies your credentials.
+      </p>
+      <div className="flex flex-col gap-4">
+        <button 
+          onClick={() => setView('Login')}
+          className="px-10 py-4 bg-guardian-blue text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg active:scale-95"
+        >
+          Return to Login
+        </button>
+        <button 
+          onClick={() => setView('Landing')}
+          className="text-slate-400 font-bold hover:text-slate-600 transition-all"
+        >
+          Back to Homepage
+        </button>
+      </div>
+    </div>
+  );
+
+  // Fix: Added missing component ReportIncidentPage
+  const ReportIncidentPage = () => (
+    <div className="space-y-8 animate-fade-in">
+      <div>
+        <h2 className="text-3xl font-heading font-bold">File Incident Report</h2>
+        <p className="text-slate-500">Document conduct violations or property damage</p>
+      </div>
+
+      <Card className="max-w-2xl">
+        <form className="space-y-6" onSubmit={addIncident}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Incident Category</label>
+              <select name="type" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-guardian-blue" required>
+                <option value="Bunking">Bunking</option>
+                <option value="Disrespect">Disrespect</option>
+                <option value="Property Damage">Property Damage</option>
+                <option value="Physical Altercation">Physical Altercation</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Severity Level</label>
+              <select name="severity" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-guardian-blue" required>
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Location</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input name="location" placeholder="e.g. Block A, 2nd Floor" className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-guardian-blue" required />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Student ID</label>
+              <div className="relative">
+                <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input name="studentId" placeholder="e.g. S105" className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-guardian-blue" required />
+              </div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Description</label>
+            <textarea name="description" rows={4} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-guardian-blue resize-none" placeholder="Provide a detailed account of the incident..." required />
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <button type="button" onClick={() => setView('Dashboard')} className="px-6 py-3 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-all">Cancel</button>
+            <button type="submit" className="px-10 py-3 bg-guardian-blue text-white font-bold rounded-xl shadow-lg shadow-blue-500/10 hover:bg-blue-700 transition-all flex items-center gap-2">
+              <Send size={18} /> Submit Report
+            </button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+
+  // Fix: Added missing component AdminDashboard
+  const AdminDashboard = () => (
+    <div className="flex flex-col items-center justify-center h-[60vh] text-center p-8 bg-white rounded-3xl border border-slate-100 shadow-sm">
+      <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6">
+        <Shield size={40} />
+      </div>
+      <h3 className="text-2xl font-heading font-bold text-slate-900 mb-2">Restricted Access</h3>
+      <p className="text-slate-500 max-w-sm">This module is strictly reserved for administrative personnel only. Please return to the overview.</p>
+      <button 
+        onClick={() => setView('Dashboard')}
+        className="mt-8 px-8 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all"
+      >
+        Return to Overview
+      </button>
+    </div>
+  );
+
   if (view === 'Landing') return <LandingPage />;
   if (view === 'Login') return <LoginPage />;
   if (view === 'SignUp') return <SignUpPage />;
@@ -1256,7 +1050,6 @@ const App: React.FC = () => {
       <EditProfileModal />
       <IncidentDetailModal />
       
-      {/* Mobile Nav */}
       <nav className="lg:hidden bg-white border-b border-slate-200 p-4 sticky top-0 z-50">
         <div className="flex items-center justify-between">
           <GradientLogo size="text-xl" />
@@ -1265,7 +1058,6 @@ const App: React.FC = () => {
       </nav>
 
       <div className="flex h-screen overflow-hidden">
-        {/* Sidebar */}
         <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-guardian-dark text-slate-400 transition-transform lg:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'} lg:static shrink-0`}>
           <div className="flex flex-col h-full p-6">
             <div className="mb-10 px-2 flex items-center justify-between">
@@ -1292,6 +1084,23 @@ const App: React.FC = () => {
             </nav>
 
             <div className="mt-auto pt-6 border-t border-slate-800">
+              {/* Production URL Attribution in Sidebar */}
+              <div className="px-2 mb-6">
+                 <a 
+                   href={PRODUCTION_URL} 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   className="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors group"
+                 >
+                   <Globe size={14} className="text-guardian-green group-hover:animate-pulse" />
+                   <div className="flex flex-col">
+                     <span className="text-[10px] font-bold text-white uppercase tracking-tight">Vercel Deployment</span>
+                     <span className="text-[8px] text-slate-500 truncate max-w-[120px]">Live Environment</span>
+                   </div>
+                   <ExternalLink size={10} className="ml-auto text-slate-600" />
+                 </a>
+              </div>
+
               <div className="flex items-center gap-3 px-2 mb-6 overflow-hidden">
                 <div className="w-10 h-10 bg-gradient-to-br from-guardian-blue to-guardian-purple rounded-xl flex items-center justify-center text-white font-bold shrink-0">
                   {currentUser?.name.charAt(0)}
@@ -1312,11 +1121,184 @@ const App: React.FC = () => {
           </div>
         </aside>
 
-        {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-6 lg:p-10 bg-slate-50">
           <div className="max-w-6xl mx-auto">
-            {view === 'Dashboard' && <AdminDashboard />}
-            {view === 'Reports' && (currentUser?.role === 'Admin' ? <ApprovalPortal /> : <AdminDashboard />)}
+            {view === 'Dashboard' && (
+              <div className="space-y-8 animate-fade-in pb-10">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-3xl font-heading font-bold">Guardian Overview</h2>
+                    <p className="text-slate-500">Real-time safety metrics and trend analysis</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <button 
+                      onClick={() => setView('SubmitReport')}
+                      className="flex items-center gap-2 px-6 py-2 bg-guardian-dark text-white font-bold rounded-xl hover:bg-slate-800 transition-all shadow-md"
+                     >
+                       <FilePlus size={18} /> Report Incident
+                     </button>
+                    <button className="p-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 relative">
+                      <Bell size={20} />
+                      <div className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <Card className="flex items-center gap-4 border-l-4 border-l-guardian-blue">
+                    <div className="p-3 bg-blue-50 rounded-xl"><AlertTriangle className="text-guardian-blue" /></div>
+                    <div>
+                      <div className="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Complaints</div>
+                      <div className="text-3xl font-bold">{incidents.length}</div>
+                    </div>
+                  </Card>
+                  <Card className="flex items-center gap-4 border-l-4 border-l-red-500">
+                    <div className="p-3 bg-red-50 rounded-xl"><AlertTriangle className="text-red-500" /></div>
+                    <div>
+                      <div className="text-slate-500 text-xs font-bold uppercase tracking-wider">Awaiting Approval</div>
+                      <div className="text-3xl font-bold">{users.filter(u => u.status === 'Pending').length}</div>
+                    </div>
+                  </Card>
+                  <Card className="flex items-center gap-4 border-l-4 border-l-guardian-green">
+                    <div className="p-3 bg-emerald-50 rounded-xl"><CheckCircle className="text-guardian-green" /></div>
+                    <div>
+                      <div className="text-slate-500 text-xs font-bold uppercase tracking-wider">Active Staff</div>
+                      <div className="text-3xl font-bold">{users.filter(u => u.status === 'Active' && u.role !== 'Student').length}</div>
+                    </div>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <Card>
+                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                      <CheckCircle size={20} className="text-guardian-blue" /> Status Distribution
+                    </h3>
+                    <PieChart 
+                      data={[
+                        { label: 'Pending', value: incidents.filter(i => i.status === 'Pending').length, color: '#94A3B8' },
+                        { label: 'In Progress', value: incidents.filter(i => i.status === 'In Progress').length, color: '#3B82F6' },
+                        { label: 'Resolved', value: incidents.filter(i => i.status === 'Resolved').length, color: '#10B981' },
+                        { label: 'Dismissed', value: incidents.filter(i => i.status === 'Dismissed').length, color: '#64748B' },
+                      ]} 
+                    />
+                  </Card>
+                  <Card>
+                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                      <LayoutDashboard size={20} className="text-guardian-purple" /> Category Breakdown
+                    </h3>
+                    <BarGraph 
+                      data={[
+                        { label: 'Bunking', value: incidents.filter(i => i.type === 'Bunking').length, color: '#7C3AED' },
+                        { label: 'Property Damage', value: incidents.filter(i => i.type === 'Property Damage').length, color: '#2563EB' },
+                        { label: 'Disrespect', value: incidents.filter(i => i.type === 'Disrespect').length, color: '#10B981' },
+                        { label: 'Physical', value: incidents.filter(i => i.type === 'Physical Altercation').length, color: '#EF4444' },
+                        { label: 'Other', value: incidents.filter(i => i.type === 'Other').length, color: '#94A3B8' },
+                      ]} 
+                    />
+                  </Card>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold flex items-center gap-2"><Filter size={20} className="text-guardian-blue" /> Incidents Log</h3>
+                  <Card className="overflow-hidden p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Incident</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Student ID</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Severity</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Status</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Timestamp</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {incidents.map(incident => (
+                            <tr key={incident.id} className="hover:bg-slate-50/50 group transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="font-bold text-slate-900">{incident.type}</div>
+                                <div className="text-[10px] text-slate-400 flex items-center gap-1 uppercase font-bold tracking-tight">
+                                  <MapPin size={10} /> {incident.location}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-slate-600 font-bold">{incident.studentId}</td>
+                              <td className="px-6 py-4"><Badge type={incident.severity}>{incident.severity}</Badge></td>
+                              <td className="px-6 py-4"><Badge type={incident.status}>{incident.status}</Badge></td>
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-bold text-slate-800">{formatTime(incident.timestamp)}</span>
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{formatDate(incident.timestamp)}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <button 
+                                  onClick={() => setViewIncident(incident)}
+                                  className="p-2 text-slate-400 hover:text-guardian-blue hover:bg-blue-50 rounded-xl transition-all"
+                                  title="View Full Details"
+                                >
+                                  <Eye size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            )}
+            {view === 'Reports' && (currentUser?.role === 'Admin' ? (
+              <div className="space-y-6 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-3xl font-heading font-bold">Access Gatekeeper</h2>
+                    <p className="text-slate-500">Verify and approve new campus members</p>
+                  </div>
+                  <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-100 text-guardian-blue font-bold text-sm">
+                    {users.filter(u => u.status === 'Pending').length} Requests Awaiting
+                  </div>
+                </div>
+
+                {users.filter(u => u.status === 'Pending').length === 0 ? (
+                  <Card className="p-12 text-center text-slate-400">
+                    <UserCheck size={48} className="mx-auto mb-4 opacity-20" />
+                    <p>No new access requests at the moment.</p>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {users.filter(u => u.status === 'Pending').map(user => (
+                      <Card key={user.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 hover:border-blue-200 transition-all">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-400">
+                            {user.name.charAt(0)}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-slate-900">{user.name}</h4>
+                            <p className="text-sm text-slate-500">{user.email} • Requested {user.role}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => rejectUser(user.id)}
+                            className="p-3 text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+                          >
+                            <UserX size={20} />
+                          </button>
+                          <button 
+                            onClick={() => approveUser(user.id)}
+                            className="flex items-center gap-2 px-6 py-3 bg-guardian-blue text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-md"
+                          >
+                            <UserCheck size={20} /> Approve Access
+                          </button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : <AdminDashboard />)}
             {view === 'Users' && <UserManagement />}
             {view === 'SubmitReport' && <ReportIncidentPage />}
           </div>
@@ -1325,15 +1307,5 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-const SidebarItem = ({ active, icon, label, onClick }: { active: boolean, icon: React.ReactNode, label: string, onClick: () => void }) => (
-  <button 
-    onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active ? 'bg-guardian-blue text-white font-bold shadow-lg shadow-blue-500/20' : 'hover:bg-white/5 hover:text-white'}`}
-  >
-    {icon}
-    <span className="text-sm">{label}</span>
-  </button>
-);
 
 export default App;
