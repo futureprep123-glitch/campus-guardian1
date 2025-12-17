@@ -1,0 +1,7 @@
+{
+  "name": "Campus Guardian",
+  "description": "An empathy-driven campus safety and misconduct reporting platform.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
