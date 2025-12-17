@@ -21,6 +21,8 @@ export interface User {
   status: UserStatus;
   password?: string;
   linkedStudentId?: string; // For Parents
+  lastLogin?: string;
+  createdAt?: string;
 }
 
 export interface Incident {
