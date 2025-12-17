@@ -239,24 +239,6 @@ const App: React.FC = () => {
     });
   };
 
-  const handleUpdateUser = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!editUser) return;
-    
-    const formData = new FormData(e.currentTarget);
-    const updatedUsers = users.map(u => u.id === editUser.id ? {
-      ...u,
-      name: formData.get('name') as string,
-      email: formData.get('email') as string,
-      role: formData.get('role') as UserRole,
-      status: formData.get('status') as UserStatus,
-    } : u);
-
-    setUsers(updatedUsers);
-    setEditUser(null);
-    pushNotification(`Updated profile for ${editUser.name}`, 'info');
-  };
-
   const handleLogout = () => {
     setCurrentUser(null);
     setView('Landing');
@@ -515,7 +497,6 @@ const App: React.FC = () => {
     </AnimatePresence>
   );
 
-  // Layouts
   const LandingPage = () => (
     <div className="min-h-screen bg-gradient-mesh flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
       <div className="max-w-4xl mx-auto space-y-8 animate-fade-in z-10">
